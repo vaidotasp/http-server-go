@@ -59,8 +59,23 @@ func handleConnection(conn net.Conn) {
 		return
 	}
 
+	fmt.Println("path", strings.Split(path, "/"))
+	sub_strings := strings.Split(path, "/")[1:] // cut first off because its empty space, I guess Split "/" cuts and makes the left side empty
+
+	for _, v := range sub_strings {
+		fmt.Printf("printing %s \n", v)
+	}
+
+	fmt.Println(sub_strings[0])
 	if path == "/" {
 		conn.Write([]byte(ok))
+	} else if len(sub_strings) > 0 && sub_strings[0] == "echo" {
+		payload := sub_strings[1]
+		content_length := fmt.Sprintf("%v", len(payload))
+		ok := "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: " + content_length + "\r\n\r\n" + payload
+
+		conn.Write([]byte(ok))
+		return // is this return necessary?
 	} else {
 		conn.Write([]byte(not_found))
 	}
