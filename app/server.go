@@ -1,15 +1,83 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"net"
 	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 )
 
+type Config struct {
+	Directory         string
+	AcceptedProtocols []string
+	AcceptedMethods   []string
+}
+
+var globalConfig Config
+
+func setupConfig() {
+	var dirFlag = flag.String("directory", "", "help msg for my dir flag")
+	flag.Parse()
+
+	if *dirFlag == "" {
+		fmt.Println("Error: no dir argument provided, provide --directory when running program")
+	}
+
+	globalConfig = Config{
+		Directory:         *dirFlag,
+		AcceptedProtocols: []string{"HTTP/1.0", "HTTP/1.1"},
+		AcceptedMethods:   []string{"GET", "PUT", "DELETE"},
+	}
+}
+
+func findFileInDir(filename string) (found bool, size int64, content string, err error) {
+	// make sure its abosule path
+	file_path, err := filepath.Abs(globalConfig.Directory)
+	if err != nil {
+		fmt.Println("Error reading: ", err.Error())
+		return found, size, content, err
+	}
+	// read dir
+	c, err := os.ReadDir(file_path)
+	if err != nil {
+		fmt.Println("No dir found, need to create: ", err.Error())
+		err = os.MkdirAll(file_path, 0755)
+		return found, size, content, err
+	}
+
+	fmt.Println("Listing subdir/parent")
+	fmt.Println(filename)
+	for _, entry := range c {
+		fmt.Println(" ", entry.Name(), entry.IsDir())
+		// if is not dir and name matches, we found it!
+		if !entry.IsDir() && entry.Name() == filename {
+			found = true
+			file_absolute_path := file_path + "/" + filename
+			fmt.Println(file_absolute_path)
+
+			f, err := os.ReadFile(file_absolute_path)
+			if err != nil {
+				fmt.Println("err opening file")
+				os.Exit(1)
+			}
+			content = string(f)
+
+			info, err := os.Stat(file_absolute_path)
+			fmt.Println("info", info.Size())
+			size = info.Size()
+			break
+		}
+	}
+	return found, size, content, err
+}
+
 func main() {
-	fmt.Println("Server starting")
+	fmt.Println("Server started")
+
+	setupConfig()
 
 	l, err := net.Listen("tcp", "0.0.0.0:4221")
 	if err != nil {
@@ -78,8 +146,6 @@ func parsePath(p string) []string {
 }
 
 func handleConnection(conn net.Conn) {
-	accepted_protocols := []string{"HTTP/1.0", "HTTP/1.1"}
-	accepted_methods := []string{"GET", "PUT", "DELETE"}
 	const ok = "HTTP/1.1 200 OK\r\n\r\n"
 	const not_found = "HTTP/1.1 404 Not Found\r\n\r\n"
 	buffer := make([]byte, 1024)
@@ -102,13 +168,13 @@ func handleConnection(conn net.Conn) {
 	fmt.Println("path", path)
 	fmt.Println("protocol", protocol)
 
-	if !slices.Contains(accepted_protocols, protocol) {
+	if !slices.Contains(globalConfig.AcceptedProtocols, protocol) {
 		fmt.Println("HTTP Version Not Supported", protocol)
 		conn.Write([]byte("HTTP/1.1 505 HTTP Version Not Supported\r\n\r\n"))
 		return
 	}
 
-	if !slices.Contains(accepted_methods, method) {
+	if !slices.Contains(globalConfig.AcceptedMethods, method) {
 		fmt.Println("Method Not Allowed", method)
 		conn.Write([]byte("HTTP/1.1 405 Method Not Allowed\r\n\r\n"))
 		return
@@ -137,7 +203,19 @@ func handleConnection(conn net.Conn) {
 		} else {
 			fmt.Println("user-agent header not found")
 		}
-
+	} else if path[1] == "files" {
+		file_name := path[2]
+		file_found, size, content, err := findFileInDir(file_name)
+		if err != nil {
+			fmt.Println("ERROR: file not found in dir")
+		}
+		if file_found {
+			fmt.Printf("found, %v, size: %v \n", file_found, size)
+			s := fmt.Sprintf("%v", size)
+			ok := "HTTP/1.1 200 OK\r\nContent-Type: application/octet-stream\r\nContent-Length: " + s + "\r\n\r\n" + content
+			conn.Write([]byte(ok))
+		}
+		conn.Write([]byte(not_found))
 	} else {
 		conn.Write([]byte(not_found))
 	}
