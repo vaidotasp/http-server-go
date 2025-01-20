@@ -29,7 +29,7 @@ func setupConfig() {
 	globalConfig = Config{
 		Directory:         *dirFlag,
 		AcceptedProtocols: []string{"HTTP/1.0", "HTTP/1.1"},
-		AcceptedMethods:   []string{"GET", "PUT", "DELETE"},
+		AcceptedMethods:   []string{"GET", "PUT", "DELETE", "POST"},
 	}
 }
 
@@ -74,6 +74,30 @@ func findFileInDir(filename string) (found bool, size int64, content string, err
 	return found, size, content, err
 }
 
+func createOrUpdateFileInDir(filename string, body string) (err error) {
+	// make sure its abosule path
+	dir_path, err := filepath.Abs(globalConfig.Directory)
+	if err != nil {
+		fmt.Println("Error reading: ", err.Error())
+		return err
+	}
+	// read dir
+	err = os.MkdirAll(dir_path, 0755)
+	if err != nil {
+		fmt.Println("No dir found, need to create: ", err.Error())
+		return err
+	}
+
+	fmt.Println("Listing subdir/parent")
+	fmt.Println(filename)
+
+	err = os.WriteFile(dir_path+"/"+filename, []byte(body), 0644)
+	if err != nil {
+		panic(err)
+	}
+	return err
+}
+
 func main() {
 	fmt.Println("Server started")
 
@@ -85,14 +109,12 @@ func main() {
 		os.Exit(1)
 	}
 	defer l.Close()
-
 	for {
 		conn, err := l.Accept()
 		if err != nil {
 			fmt.Println("Error accepting connection: ", err.Error())
 			os.Exit(1)
 		}
-
 		go handleConnection(conn)
 	}
 }
@@ -102,29 +124,40 @@ func parseRequest(buffer []byte, n int) [][]string {
 	var result [][]string
 
 	req_buffer_string := string(buffer[:n])
-	// fmt.Println(req_buffer_string)
 	req_chunks := strings.Split(req_buffer_string, "\n")
 
 	for i, c := range req_chunks {
 		line := strings.TrimSpace(c)
-		if line == "" {
-			continue
-		}
-
+		fmt.Println("debug - i:", i)
 		if i == 0 {
-			// we are in the very fist line, which is request method
+			// we are in the very fist line, which is request method, url and protocol
 			fmt.Println("req", line)
 			parts := strings.Split(line, " ")
 			fmt.Println("parts", parts)
 			result = append(result, []string{parts[0], parts[1], parts[2]})
+			fmt.Println("debug - res:", result)
 		} else if i > 0 {
 			// headers
-			parts := strings.Split(line, ":")
-			key := strings.ToLower(strings.TrimSpace(parts[0]))
-			value := strings.ToLower(strings.TrimSpace(parts[1]))
-			result = append(result, []string{key, value})
+			if line == "" {
+				// we have a data in POST most likely here because empty line separates headers from data body
+				fmt.Println("debug - body:", result)
+				parts := strings.Split(line, ":")
+				result = append(result, []string{parts[0]})
+				// continue
+			} else {
+				if result[i-1][0] == "" { // prev entry is empty string, we are in "body" section
+					parts := strings.Split(line, ":")
+					result = append(result, []string{parts[0]})
+				} else {
+					parts := strings.Split(line, ":")
+					fmt.Println("parts", parts)
+					key := strings.ToLower(strings.TrimSpace(parts[0]))
+					value := strings.ToLower(strings.TrimSpace(parts[1]))
+					result = append(result, []string{key, value})
+					fmt.Println("debug - res:", result)
+				}
+			}
 		}
-
 	}
 	fmt.Println("DONE -- Parsing request buffer")
 	return result
@@ -147,6 +180,7 @@ func parsePath(p string) []string {
 
 func handleConnection(conn net.Conn) {
 	const ok = "HTTP/1.1 200 OK\r\n\r\n"
+	const ok_created = "HTTP/1.1 201 Created\r\n\r\n"
 	const not_found = "HTTP/1.1 404 Not Found\r\n\r\n"
 	buffer := make([]byte, 1024)
 
@@ -204,18 +238,32 @@ func handleConnection(conn net.Conn) {
 			fmt.Println("user-agent header not found")
 		}
 	} else if path[1] == "files" {
-		file_name := path[2]
-		file_found, size, content, err := findFileInDir(file_name)
-		if err != nil {
-			fmt.Println("ERROR: file not found in dir")
+		if method == "GET" {
+			file_name := path[2]
+			file_found, size, content, err := findFileInDir(file_name)
+			if err != nil {
+				fmt.Println("ERROR: file not found in dir")
+			}
+			if file_found {
+				fmt.Printf("found, %v, size: %v \n", file_found, size)
+				s := fmt.Sprintf("%v", size)
+				ok := "HTTP/1.1 200 OK\r\nContent-Type: application/octet-stream\r\nContent-Length: " + s + "\r\n\r\n" + content
+				conn.Write([]byte(ok))
+			} else {
+				conn.Write([]byte(not_found))
+			}
+		} else if method == "POST" {
+			file_name := path[2]
+			fmt.Println("we here?")
+			body := parsed_req[len(parsed_req)-1][0]
+			fmt.Println("body", body)
+			err := createOrUpdateFileInDir(file_name, parsed_req[len(parsed_req)-1][0])
+			if err != nil {
+				fmt.Println("ERROR: file not found in dir")
+				conn.Write([]byte(not_found))
+			}
+			conn.Write([]byte(ok_created))
 		}
-		if file_found {
-			fmt.Printf("found, %v, size: %v \n", file_found, size)
-			s := fmt.Sprintf("%v", size)
-			ok := "HTTP/1.1 200 OK\r\nContent-Type: application/octet-stream\r\nContent-Length: " + s + "\r\n\r\n" + content
-			conn.Write([]byte(ok))
-		}
-		conn.Write([]byte(not_found))
 	} else {
 		conn.Write([]byte(not_found))
 	}
