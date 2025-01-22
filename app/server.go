@@ -14,6 +14,7 @@ type Config struct {
 	Directory         string
 	AcceptedProtocols []string
 	AcceptedMethods   []string
+	AcceptedEncoding  []string
 }
 
 var globalConfig Config
@@ -30,6 +31,7 @@ func setupConfig() {
 		Directory:         *dirFlag,
 		AcceptedProtocols: []string{"HTTP/1.0", "HTTP/1.1"},
 		AcceptedMethods:   []string{"GET", "PUT", "DELETE", "POST"},
+		AcceptedEncoding:  []string{"gzip"},
 	}
 }
 
@@ -98,6 +100,39 @@ func createOrUpdateFileInDir(filename string, body string) (err error) {
 	return err
 }
 
+func checkClientEncoding(parts [][]string) (encoding string, err error) {
+	// find in parts encoding header
+	idx := slices.IndexFunc(parts, func(s []string) bool {
+		return strings.Contains(s[0], "accept-encoding")
+	})
+
+	if idx == -1 {
+		// client not accepting any compression
+		return "", fmt.Errorf("accept-encoding header not found")
+	}
+
+	client_encoding := parts[idx][1]
+	client_encodings := strings.Split(client_encoding, ",")
+	var accepted_filtered_encodings []string
+
+	if len(client_encodings) == 0 {
+		return "none", err
+	}
+
+	for _, e := range globalConfig.AcceptedEncoding {
+		if slices.Contains(client_encodings, e) {
+			accepted_filtered_encodings = append(accepted_filtered_encodings, e)
+		}
+	}
+
+	if len(accepted_filtered_encodings) == 0 {
+		return "none", err
+	}
+
+	// we are gonna just support one encoding for now, the first one in line, and we add those in terms of preference
+	return accepted_filtered_encodings[0], err
+}
+
 func main() {
 	fmt.Println("Server started")
 
@@ -143,7 +178,6 @@ func parseRequest(buffer []byte, n int) [][]string {
 				fmt.Println("debug - body:", result)
 				parts := strings.Split(line, ":")
 				result = append(result, []string{parts[0]})
-				// continue
 			} else {
 				if result[i-1][0] == "" { // prev entry is empty string, we are in "body" section
 					parts := strings.Split(line, ":")
@@ -214,11 +248,19 @@ func handleConnection(conn net.Conn) {
 		return
 	}
 
+	// check if client accepts any ecoding and if so which one. compare to what we support on the server.
+	//  return can be "none" or "gzip",etc
+	encoding, err := checkClientEncoding(parsed_req)
+
 	if path[0] == "/" {
 		conn.Write([]byte(ok))
 	} else if path[1] == "echo" {
 		content_length := fmt.Sprintf("%v", len(path[2]))
 		ok := "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: " + content_length + "\r\n\r\n" + path[2]
+
+		if encoding != "none" {
+			ok = "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Encoding: " + encoding + "\r\n" + "Content-Length: " + content_length + "\r\n\r\n" + path[2]
+		}
 		conn.Write([]byte(ok))
 	} else if path[1] == "user-agent" {
 		fmt.Println("in user agent")
