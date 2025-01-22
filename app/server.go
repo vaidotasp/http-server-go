@@ -112,7 +112,9 @@ func checkClientEncoding(parts [][]string) (encoding string, err error) {
 	}
 
 	client_encoding := parts[idx][1]
+	fmt.Println(client_encoding)
 	client_encodings := strings.Split(client_encoding, ",")
+	fmt.Println(client_encodings)
 	var accepted_filtered_encodings []string
 
 	if len(client_encodings) == 0 {
@@ -120,10 +122,18 @@ func checkClientEncoding(parts [][]string) (encoding string, err error) {
 	}
 
 	for _, e := range globalConfig.AcceptedEncoding {
-		if slices.Contains(client_encodings, e) {
-			accepted_filtered_encodings = append(accepted_filtered_encodings, e)
+		fmt.Println("going over:", e)
+		fmt.Println("comparing:", client_encodings, e)
+		// this is not supporting additional params like  (gzip;q=1.0)
+		for _, ce := range client_encodings {
+			trimmed := strings.TrimSpace(ce)
+			if strings.EqualFold(trimmed, e) {
+				accepted_filtered_encodings = append(accepted_filtered_encodings, e)
+			}
 		}
 	}
+
+	fmt.Println(accepted_filtered_encodings)
 
 	if len(accepted_filtered_encodings) == 0 {
 		return "none", err
@@ -258,6 +268,7 @@ func handleConnection(conn net.Conn) {
 		content_length := fmt.Sprintf("%v", len(path[2]))
 		ok := "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: " + content_length + "\r\n\r\n" + path[2]
 
+		fmt.Println(encoding)
 		if encoding != "none" {
 			ok = "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Encoding: " + encoding + "\r\n" + "Content-Length: " + content_length + "\r\n\r\n" + path[2]
 		}
