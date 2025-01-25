@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 )
 
@@ -110,7 +111,7 @@ func checkClientEncoding(parts [][]string) (encoding string, err error) {
 
 	if idx == -1 {
 		// client not accepting any compression
-		return "", fmt.Errorf("accept-encoding header not found")
+		return "none", fmt.Errorf("accept-encoding header not found")
 	}
 
 	client_encoding := parts[idx][1]
@@ -263,50 +264,35 @@ func handleConnection(conn net.Conn) {
 	// check if client accepts any ecoding and if so which one. compare to what we support on the server.
 	//  return can be "none" or "gzip",etc
 	encoding, err := checkClientEncoding(parsed_req)
+	if err != nil {
+		encoding = "none"
+	}
 
 	if path[0] == "/" {
 		conn.Write([]byte(ok))
 	} else if path[1] == "echo" {
 		content_length := fmt.Sprintf("%v", len(path[2]))
 		ok := "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: " + content_length + "\r\n\r\n" + path[2]
-
-		fmt.Println(encoding)
 		if encoding != "none" {
 			var b bytes.Buffer
 			str := path[2]
-			fmt.Println("input str:", str)
-
 			gz := gzip.NewWriter(&b)
-
 			gz.Write([]byte(str))
-
 			gz.Close()
 
-			// if err := gz.Close(); err != nil {
-			// 	log.Fatal(err)
-			// }
-			// fmt.Println("zzzz", b.Bytes())
 			output := b.String()
-			// ouput_len := fmt.Sprint(len(output))
-			// output_compressed := b.Bytes()
-			// output_compressed_len := len(output_compressed)
 			compression := "Content-Encoding: gzip\r\n"
+			length := strconv.Itoa(b.Len())
 
 			ok = "HTTP/1.1 200 OK\r\n" +
 				compression +
 				"Content-Type: " + "text/plain" + "\r\n" +
-				"Content-Length: " + fmt.Sprint(len(output)) +
+				"Content-Length: " + length +
 				"\r\n" +
 				"\r\n" + output
 
 			conn.Write([]byte(ok))
 			return
-
-			// conn.Write([]byte(fmt.Sprintf("HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Encoding: %s\r\nContent-Length: %d\r\n\r\n", "gzip", output_compressed_len)))
-			// conn.Write(output_compressed)
-			// ok = fmt.Sprintf("HTTP/1.1 200 OK\r\nContent-Encoding: gzip\r\nContent-Type: text/plain\r\nContent-Length: %d\r\n\r\n%s", len(b.String()), b.String())
-
-			// ok = "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Encoding: " + encoding + "\r\n" + "Content-Length: " + output_len + "\r\n\r\n" + output
 		}
 		conn.Write([]byte(ok))
 	} else if path[1] == "user-agent" {
