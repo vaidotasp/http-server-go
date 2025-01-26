@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"net"
 	"os"
 	"strings"
@@ -77,4 +78,45 @@ func TestMainPath(t *testing.T) {
 			t.Errorf("Expected '%s', got:\n%s", expected_response, response)
 		}
 	})
+	t.Run("/echo/abc path - no encoding", func(t *testing.T) {
+		/* Given /echo path we test:
+		take everything that is after echo/ so /echo/abc, we take abc string and send it back
+		eg. 	ok := "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: " + content_length + "\r\n\r\n" + path[2]
+
+		this test does not assume encoding, in fact we do not provide encoding in our request so return must not be encoded
+		*/
+		conn, err := net.Dial("tcp", "127.0.0.1:4221")
+		if err != nil {
+			t.Fatalf("Failed to connect to the server: %v", err)
+		}
+		defer conn.Close()
+		request := "GET /echo/abc HTTP/1.1\r\nHost: localhost:4221\r\n\r\n"
+		if _, err := conn.Write([]byte(request)); err != nil {
+			t.Fatalf("Failed to send request: %v", err)
+		}
+
+		buffer := make([]byte, 1024)
+		n, err := conn.Read((buffer))
+		if err != nil {
+			t.Fatalf("Failed to read response: %v", err)
+		}
+		content_length := fmt.Sprintf("%v", len("abc"))
+		response := string(buffer[:n])
+		expected_response := "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: " + content_length + "\r\n\r\n" + "abc"
+
+		if response != expected_response {
+			t.Errorf("Expected equality, but got response \n%s\n != expected_response \n%s\n", response, expected_response)
+		}
+	})
+	t.Run("/echo/ path - no encoding", func(t *testing.T) {
+		/* Given /echo path we test:
+		 */
+	})
+	t.Run("/echo/abc/cde path - no encoding", func(t *testing.T) {
+		/* Given /echo path we test:
+		 */
+	})
+	t.Run("echo path - encoding", func(t *testing.T) {})
+	t.Run("404 handling all unknown paths", func(t *testing.T) {})
+	t.Run("404 handling all unknown paths", func(t *testing.T) {})
 }
