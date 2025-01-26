@@ -54,4 +54,27 @@ func TestMainPath(t *testing.T) {
 			t.Errorf("Expected 'HTTP/1.1 200 OK', got:\n%s", response)
 		}
 	})
+
+	t.Run("404 handling all unknown paths", func(t *testing.T) {
+		conn, err := net.Dial("tcp", "127.0.0.1:4221")
+		if err != nil {
+			t.Fatalf("Failed to connect to the server: %v", err)
+		}
+		defer conn.Close()
+		request := "GET /abc HTTP/1.1\r\nHost: localhost\r\n\r\n"
+		if _, err := conn.Write([]byte(request)); err != nil {
+			t.Fatalf("Failed to send request: %v", err)
+		}
+
+		buffer := make([]byte, 1024)
+		n, err := conn.Read((buffer))
+		if err != nil {
+			t.Fatalf("Failed to read response: %v", err)
+		}
+		response := string(buffer[:n])
+		expected_response := "HTTP/1.1 404 Not Found"
+		if !strings.Contains(response, expected_response) {
+			t.Errorf("Expected '%s', got:\n%s", expected_response, response)
+		}
+	})
 }
