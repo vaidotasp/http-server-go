@@ -110,7 +110,30 @@ func TestMainPath(t *testing.T) {
 	})
 	t.Run("/echo/ path - no encoding", func(t *testing.T) {
 		/* Given /echo path we test:
-		 */
+		- no subpath after echo is present, expected behavior is 422 Unprocessable Content
+		*/
+		conn, err := net.Dial("tcp", "127.0.0.1:4221")
+		if err != nil {
+			t.Fatalf("Failed to connect to the server: %v", err)
+		}
+		defer conn.Close()
+		request := "GET /echo/ HTTP/1.1\r\nHost: localhost:4221\r\n\r\n"
+		if _, err := conn.Write([]byte(request)); err != nil {
+			t.Fatalf("Failed to send request: %v", err)
+		}
+
+		buffer := make([]byte, 1024)
+		n, err := conn.Read((buffer))
+		if err != nil {
+			t.Fatalf("Failed to read response: %v", err)
+		}
+		content_length := fmt.Sprintf("%v", len("abc"))
+		response := string(buffer[:n])
+		expected_response := "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: " + content_length + "\r\n\r\n" + "abc"
+
+		if response != expected_response {
+			t.Errorf("Expected equality, but got response \n%s\n != expected_response \n%s\n", response, expected_response)
+		}
 	})
 	t.Run("/echo/abc/cde path - no encoding", func(t *testing.T) {
 		/* Given /echo path we test:
