@@ -273,6 +273,11 @@ func handleConnection(conn net.Conn) {
 	} else if path[1] == "echo" {
 		content_length := fmt.Sprintf("%v", len(path[2]))
 		ok := "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: " + content_length + "\r\n\r\n" + path[2]
+		if path[2] == "" {
+			fmt.Println("DEBUG1", path[2])
+			conn.Write([]byte("HTTP/1.1 422 Unprocessable Entity"))
+			return
+		}
 		if encoding != "none" {
 			var b bytes.Buffer
 			str := path[2]

@@ -127,9 +127,8 @@ func TestMainPath(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Failed to read response: %v", err)
 		}
-		content_length := fmt.Sprintf("%v", len("abc"))
 		response := string(buffer[:n])
-		expected_response := "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: " + content_length + "\r\n\r\n" + "abc"
+		expected_response := "HTTP/1.1 422 Unprocessable Entity"
 
 		if response != expected_response {
 			t.Errorf("Expected equality, but got response \n%s\n != expected_response \n%s\n", response, expected_response)
