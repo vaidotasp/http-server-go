@@ -1,0 +1,57 @@
+package main
+
+import (
+	"net"
+	"os"
+	"strings"
+	"testing"
+	"time"
+)
+
+func startServer(t *testing.T) func() {
+
+	testDir := t.TempDir()
+	oldArgs := os.Args
+
+	os.Args = []string{
+		oldArgs[0],
+		"--directory", testDir,
+	}
+
+	go func() {
+		main()
+	}()
+
+	time.Sleep(500 * time.Millisecond)
+
+	return func() {
+		os.Args = oldArgs
+	}
+}
+
+func TestMainPath(t *testing.T) {
+	cleanup := startServer(t)
+	defer cleanup()
+
+	t.Run("Root path", func(t *testing.T) {
+		conn, err := net.Dial("tcp", "127.0.0.1:4221")
+		if err != nil {
+			t.Fatalf("Failed to connect to the server: %v", err)
+		}
+		defer conn.Close()
+		request := "GET / HTTP/1.1\r\nHost: localhost\r\n\r\n"
+		if _, err := conn.Write([]byte(request)); err != nil {
+			t.Fatalf("Failed to send request: %v", err)
+		}
+
+		buffer := make([]byte, 1024)
+		n, err := conn.Read((buffer))
+		if err != nil {
+			t.Fatalf("Failed to read response: %v", err)
+		}
+		response := string(buffer[:n])
+		if !strings.Contains(response, "HTTP/1.1 200 OK") {
+			t.Errorf("Expected 'HTTP/1.1 200 OK', got:\n%s", response)
+		}
+	})
+}
