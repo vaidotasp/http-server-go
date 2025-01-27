@@ -1,9 +1,12 @@
 package main
 
 import (
+	"bytes"
+	"compress/gzip"
 	"fmt"
 	"net"
 	"os"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -161,7 +164,74 @@ func TestMainPath(t *testing.T) {
 			t.Errorf("Expected equality, but got response \n%s\n != expected_response \n%s\n", response, expected_response)
 		}
 	})
-	t.Run("echo path - encoding", func(t *testing.T) {})
+	t.Run("echo path - gzip encoding", func(t *testing.T) {
+		// test gzip encoding, gzip "abc" (path after /echo) and send it back
+		conn, err := net.Dial("tcp", "127.0.0.1:4221")
+		if err != nil {
+			t.Fatalf("Failed to connect to the server: %v", err)
+		}
+		defer conn.Close()
+		request := "GET /echo/abc HTTP/1.1\r\nHost: localhost:4221\r\nAccept-Encoding: gzip\r\n\r\n"
+		if _, err := conn.Write([]byte(request)); err != nil {
+			t.Fatalf("Failed to send request: %v", err)
+		}
+
+		buffer := make([]byte, 1024)
+		n, err := conn.Read((buffer))
+		if err != nil {
+			t.Fatalf("Failed to read response: %v", err)
+		}
+		var b bytes.Buffer
+		str := "abc"
+		gz := gzip.NewWriter(&b)
+		gz.Write([]byte(str))
+		gz.Close()
+
+		output := b.String()
+		length := strconv.Itoa(b.Len())
+		compression := "Content-Encoding: gzip\r\n"
+		response := string(buffer[:n])
+		expected_response := "HTTP/1.1 200 OK\r\n" +
+			compression +
+			"Content-Type: " + "text/plain" + "\r\n" +
+			"Content-Length: " + length +
+			"\r\n" +
+			"\r\n" + output
+
+		if response != expected_response {
+			t.Errorf("Expected equality, but got response \n%s\n != expected_response \n%s\n", response, expected_response)
+		}
+	})
+	t.Run("echo path - brotli encoding -- not found", func(t *testing.T) {
+		// test not supported encoding (like brotli), dont encode in that case, just send it back as is
+		conn, err := net.Dial("tcp", "127.0.0.1:4221")
+		if err != nil {
+			t.Fatalf("Failed to connect to the server: %v", err)
+		}
+		defer conn.Close()
+		request := "GET /echo/abc HTTP/1.1\r\nHost: localhost:4221\r\nAccept-Encoding: br\r\n\r\n"
+		if _, err := conn.Write([]byte(request)); err != nil {
+			t.Fatalf("Failed to send request: %v", err)
+		}
+
+		buffer := make([]byte, 1024)
+		n, err := conn.Read((buffer))
+		if err != nil {
+			t.Fatalf("Failed to read response: %v", err)
+		}
+		str := "abc"
+		length := fmt.Sprintf("%v", len("abc"))
+		response := string(buffer[:n])
+		expected_response := "HTTP/1.1 200 OK\r\n" +
+			"Content-Type: " + "text/plain" + "\r\n" +
+			"Content-Length: " + length +
+			"\r\n" +
+			"\r\n" + str
+
+		if response != expected_response {
+			t.Errorf("Expected equality, but got response \n%s\n != expected_response \n%s\n", response, expected_response)
+		}
+	})
 	t.Run("404 handling all unknown paths", func(t *testing.T) {})
 	t.Run("404 handling all unknown paths", func(t *testing.T) {})
 }
