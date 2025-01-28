@@ -176,19 +176,14 @@ func parseRequest(buffer []byte, n int) [][]string {
 
 	for i, c := range req_chunks {
 		line := strings.TrimSpace(c)
-		fmt.Println("debug - i:", i)
 		if i == 0 {
 			// we are in the very fist line, which is request method, url and protocol
-			fmt.Println("req", line)
 			parts := strings.Split(line, " ")
-			fmt.Println("parts", parts)
 			result = append(result, []string{parts[0], parts[1], parts[2]})
-			fmt.Println("debug - res:", result)
 		} else if i > 0 {
 			// headers
 			if line == "" {
 				// we have a data in POST most likely here because empty line separates headers from data body
-				fmt.Println("debug - body:", result)
 				parts := strings.Split(line, ":")
 				result = append(result, []string{parts[0]})
 			} else {
@@ -197,16 +192,13 @@ func parseRequest(buffer []byte, n int) [][]string {
 					result = append(result, []string{parts[0]})
 				} else {
 					parts := strings.Split(line, ":")
-					fmt.Println("parts", parts)
 					key := strings.ToLower(strings.TrimSpace(parts[0]))
 					value := strings.ToLower(strings.TrimSpace(parts[1]))
 					result = append(result, []string{key, value})
-					fmt.Println("debug - res:", result)
 				}
 			}
 		}
 	}
-	fmt.Println("DONE -- Parsing request buffer")
 	return result
 }
 
@@ -238,16 +230,9 @@ func handleConnection(conn net.Conn) {
 	}
 
 	parsed_req := parseRequest(buffer, n)
-	fmt.Println(parsed_req)
 	method := parsed_req[0][0]
 	path := parsePath(parsed_req[0][1]) //this can be "/" or subpaths too like "/abc/bde/cfg"
 	protocol := parsed_req[0][2]
-
-	// DEBUG STUFF
-	fmt.Println("pased_req", parsed_req)
-	fmt.Println("method", method)
-	fmt.Println("path", path)
-	fmt.Println("protocol", protocol)
 
 	if !slices.Contains(globalConfig.AcceptedProtocols, protocol) {
 		fmt.Println("HTTP Version Not Supported", protocol)
@@ -274,7 +259,6 @@ func handleConnection(conn net.Conn) {
 		content_length := fmt.Sprintf("%v", len(path[2]))
 		ok := "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: " + content_length + "\r\n\r\n" + path[2]
 		if path[2] == "" {
-			fmt.Println("DEBUG1", path[2])
 			conn.Write([]byte("HTTP/1.1 422 Unprocessable Entity"))
 			return
 		}
@@ -301,7 +285,6 @@ func handleConnection(conn net.Conn) {
 		}
 		conn.Write([]byte(ok))
 	} else if path[1] == "user-agent" {
-		fmt.Println("in user agent")
 		// find user agent header in request
 		headers := parsed_req[1:]
 		idx := slices.IndexFunc(headers, func(s []string) bool {
@@ -334,9 +317,8 @@ func handleConnection(conn net.Conn) {
 			}
 		} else if method == "POST" {
 			file_name := path[2]
-			fmt.Println("we here?")
-			body := parsed_req[len(parsed_req)-1][0]
-			fmt.Println("body", body)
+			// body := parsed_req[len(parsed_req)-1][0]
+			// fmt.Println("body", body)
 			err := createOrUpdateFileInDir(file_name, parsed_req[len(parsed_req)-1][0])
 			if err != nil {
 				fmt.Println("ERROR: file not found in dir")
