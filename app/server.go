@@ -39,7 +39,7 @@ func setupConfig() {
 }
 
 func findFileInDir(filename string) (found bool, size int64, content string, err error) {
-	// make sure its abosule path
+	// make sure its absolute path
 	file_path, err := filepath.Abs(globalConfig.Directory)
 	if err != nil {
 		fmt.Println("Error reading: ", err.Error())

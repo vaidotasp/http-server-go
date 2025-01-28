@@ -258,5 +258,31 @@ func TestMainPath(t *testing.T) {
 			t.Errorf("Expected equality, but got response \n%s\n != expected_response \n%s\n", response, expected_response)
 		}
 	})
-	t.Run("TODO: test /files", func(t *testing.T) {})
+	t.Run("TODO: test /files -> GET", func(t *testing.T) {})
+	t.Run("test /files -> POST", func(t *testing.T) {
+		header_val := "foobar/1.2.3"
+		conn, err := net.Dial("tcp", "127.0.0.1:4221")
+		if err != nil {
+			t.Fatalf("Failed to connect to the server: %v", err)
+		}
+		defer conn.Close()
+
+		request := "POST /files/number HTTP/1.1\r\nHost: localhost:4221\r\n" + "Content-Type: application/octet-stream\r\n" + "User-Agent: " + header_val + "\r\n\r\n" + "1234"
+
+		if _, err := conn.Write([]byte(request)); err != nil {
+			t.Fatalf("Failed to send request: %v", err)
+		}
+
+		buffer := make([]byte, 1024)
+		n, err := conn.Read((buffer))
+		if err != nil {
+			t.Fatalf("Failed to read response: %v", err)
+		}
+		response := string(buffer[:n])
+		expected_response := "HTTP/1.1 201 Created\r\n\r\n"
+		if response != expected_response {
+			t.Errorf("Expected equality, but got response \n%s\n != expected_response \n%s\n", response, expected_response)
+		}
+	})
+
 }
