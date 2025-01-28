@@ -206,9 +206,7 @@ func parsePath(p string) []string {
 		result = append(result, "/")
 	} else {
 		paths := strings.Split(p, "/")
-		for _, c := range paths {
-			result = append(result, c)
-		}
+		result = append(result, paths...)
 	}
 
 	fmt.Println("paths result", result)
