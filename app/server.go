@@ -125,8 +125,6 @@ func checkClientEncoding(parts [][]string) (encoding string, err error) {
 	}
 
 	for _, e := range globalConfig.AcceptedEncoding {
-		fmt.Println("going over:", e)
-		fmt.Println("comparing:", client_encodings, e)
 		// this is not supporting additional params like  (gzip;q=1.0)
 		for _, ce := range client_encodings {
 			trimmed := strings.TrimSpace(ce)
