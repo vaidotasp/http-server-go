@@ -232,6 +232,31 @@ func TestMainPath(t *testing.T) {
 			t.Errorf("Expected equality, but got response \n%s\n != expected_response \n%s\n", response, expected_response)
 		}
 	})
-	t.Run("404 handling all unknown paths", func(t *testing.T) {})
-	t.Run("404 handling all unknown paths", func(t *testing.T) {})
+	t.Run("TODO: test /user-agent", func(t *testing.T) {
+		// testing reading User-Agent header and spitting it back out as a response body
+		header_val := "foobar/1.2.3"
+		conn, err := net.Dial("tcp", "127.0.0.1:4221")
+		if err != nil {
+			t.Fatalf("Failed to connect to the server: %v", err)
+		}
+		defer conn.Close()
+		request := "GET /user-agent HTTP/1.1\r\nHost: localhost:4221\r\nUser-Agent: " + header_val + "\r\n\r\n"
+		if _, err := conn.Write([]byte(request)); err != nil {
+			t.Fatalf("Failed to send request: %v", err)
+		}
+
+		buffer := make([]byte, 1024)
+		n, err := conn.Read((buffer))
+		if err != nil {
+			t.Fatalf("Failed to read response: %v", err)
+		}
+		content_length := fmt.Sprintf("%v", len(header_val))
+		response := string(buffer[:n])
+		expected_response := "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: " + content_length + "\r\n\r\n" + header_val
+
+		if response != expected_response {
+			t.Errorf("Expected equality, but got response \n%s\n != expected_response \n%s\n", response, expected_response)
+		}
+	})
+	t.Run("TODO: test /files", func(t *testing.T) {})
 }
