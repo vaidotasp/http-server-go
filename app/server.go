@@ -71,6 +71,10 @@ func findFileInDir(filename string) (found bool, size int64, content string, err
 			content = string(f)
 
 			info, err := os.Stat(file_absolute_path)
+			if err != nil {
+				fmt.Println("err returning file info")
+				os.Exit(1)
+			}
 			fmt.Println("info", info.Size())
 			size = info.Size()
 			break
